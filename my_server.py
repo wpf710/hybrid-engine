@@ -64,14 +64,16 @@ class Tokens(object):
 
     def on_post(self, environ, start_response):  
         req = Request(environ)
-        
+
         data = None
         if req.content_length:
             # we are mixing the multiple keystone, so we don't have concrete tenant info yet
             data = self._removeTenantInPayload(req.body)
 
         req.headers.pop('Host')
-
+        
+        new_token = str(uuid.uuid4())
+        
         regions = {}
         # minimal expire date
         expires = '2014-01-31T14:30:58Z'
@@ -84,7 +86,7 @@ class Tokens(object):
             if os_resp.status_code == 200 :
                 s = json.loads(os_resp.content)
 
-                TOKENS_CACHE['region'+str(regin_idx)] = s['access']['token']['id']
+                TOKENS_CACHE['region'+str(regin_idx)+ new_token] = s['access']['token']['id']
 
                 for dp in s['access']['serviceCatalog']:
                     #suppose only one region now
@@ -97,7 +99,7 @@ class Tokens(object):
             if cmp(regions['region' + str(regin_idx)]['access']['token']['expires'],expires):
                 expires = regions['region' + str(regin_idx)]['access']['token']['expires']
 
-        new_token = str(uuid.uuid4())
+        
 
         body = {"access":{
                     "token":{"id":new_token,"expires":expires,"tenant":{"id":"fake"}},
@@ -111,7 +113,7 @@ class Tokens(object):
                         {"endpoints":[],"endpoints_links":[],"type":"volume","name":"cinder"},                         
                         {"endpoints":[],"endpoints_links":[],"type":"identity","name":"keystone"}
                         #{"endpoints":[],"endpoints_links":[],"type":"ec2","name":"ec2"} 
-                    ],"user":{}}}
+                    ],"user":{"id":"fake"}}}
         
         _endpoints = {
                         "compute"   : body['access']['serviceCatalog'][0]['endpoints'],
@@ -238,14 +240,14 @@ class OpenStackResponder(object):
         endpoint = ep[_url_type+'URL'] + relative_uri
 
         if req.headers['X-Auth-Token']:
-            req.headers['X-Auth-Token'] = TOKENS_CACHE[ep['region']]
-            
+            req.headers['X-Auth-Token'] = TOKENS_CACHE[ep['region']+req.headers['X-Auth-Token']]
+
         os_resp = requests.request(req.method,
                                    endpoint,
                                    data=data,
                                    headers=req.headers,
                                    stream=False)
-
+        
 
         resp = Response()
         resp.status = os_resp.status_code
@@ -262,6 +264,7 @@ class OpenStackResponder(object):
         hd = dict(os_resp.headers.items())
         if(hd.has_key('connection')):
             hd.pop('connection')
+        hd['content-type'] = 'application/json'
         resp.headers = hd
         resp.body = os_resp.content
 
