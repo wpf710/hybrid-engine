@@ -233,6 +233,7 @@ class OpenStackResponder(object):
         _id = relative_uri[0]
         _url_type = relative_uri[1]
 
+                
         relative_uri = '/' + '/'.join(relative_uri[2:])
 
 
@@ -248,6 +249,7 @@ class OpenStackResponder(object):
                                    headers=req.headers,
                                    stream=False)
         
+        resp_content = os_resp.content.replace('localhost:8000','localhost:8000/'+_id+'/'+_url_type)
 
         resp = Response()
         resp.status = os_resp.status_code
@@ -258,16 +260,18 @@ class OpenStackResponder(object):
         # back as the content-type when it's supposed to be text/plain.
         if content_type == 'text/html':
             content_type = 'text/plain; charset=UTF-8'
+        
         resp.content_type = content_type
-        resp.content_length = os_resp.headers.pop('Content-Length', 0)
+        resp.content_length = len(resp_content) # os_resp.headers.pop('Content-Length', 0)
+        
         #hop by hop headers
         hd = dict(os_resp.headers.items())
         if(hd.has_key('connection')):
             hd.pop('connection')
         hd['content-type'] = 'application/json'
         resp.headers = hd
-        resp.body = os_resp.content
-
+        resp.body = resp_content    
+        
         return resp(environ,start_response)
 
     on_get = _standard_responder
