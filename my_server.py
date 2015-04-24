@@ -110,7 +110,8 @@ class Tokens(object):
                         {"endpoints":[],"endpoints_links":[],"type":"computev3","name":"nova"},
                         {"endpoints":[],"endpoints_links":[],"type":"s3","name":"s3"},
                         {"endpoints":[],"endpoints_links":[],"type":"image","name":"glance"},    
-                        {"endpoints":[],"endpoints_links":[],"type":"volume","name":"cinder"},                         
+                        {"endpoints":[],"endpoints_links":[],"type":"volume","name":"cinder"},    
+                        # todo: we need to provide our virtual keystone endpoint here                     
                         {"endpoints":[],"endpoints_links":[],"type":"identity","name":"keystone"}
                         #{"endpoints":[],"endpoints_links":[],"type":"ec2","name":"ec2"} 
                     ],"user":{"id":"fake"}}}
@@ -215,6 +216,15 @@ class OpenStackResponder(object):
         
         raise AttributeError('not implemented method:' + req_method)
 
+    def _extract_id_type_url(self,path_qs):
+        relative_uri = path_qs.lstrip('/').split('/')
+        
+        _id = relative_uri[0]
+        _url_type = relative_uri[1]
+                
+        relative_uri = '/' + '/'.join(relative_uri[2:])
+
+        return _id,_url_type,relative_uri
 
     def _standard_responder(self, environ, start_response):
         req = Request(environ)
@@ -228,13 +238,7 @@ class OpenStackResponder(object):
         else:
             req.headers.pop('Content-Length')
 
-        relative_uri = req.path_qs.lstrip('/').split('/')
-        
-        _id = relative_uri[0]
-        _url_type = relative_uri[1]
-
-                
-        relative_uri = '/' + '/'.join(relative_uri[2:])
+        _id, _url_type, relative_uri = self._extract_id_type_url(req.path_qs)
 
 
         ep = json.loads(ENDPOINTS_CACHE[_id])
